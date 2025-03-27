@@ -17,7 +17,7 @@ pipeline {
         
         stage('Build Flask Docker Image') {
             steps {
-                dir('Task1') {  // Change to Task1 directory
+                dir('Task1') {
                     sh '''
                         docker build -t flask-app .
                         docker images
@@ -36,7 +36,7 @@ pipeline {
         
         stage('Deploy Flask App') {
             steps {
-                dir('Task1') {  // Change to Task1 directory
+                dir('Task1') {
                     sh '''
                         docker stop ${FLASK_APP_NAME} || true
                         docker rm ${FLASK_APP_NAME} || true
@@ -45,6 +45,10 @@ pipeline {
                             --network ${DOCKER_NETWORK} \
                             -e YOUR_NAME=${YOUR_NAME} \
                             flask-app
+                        
+                        # Wait for Flask app to be ready
+                        sleep 10
+                        docker logs ${FLASK_APP_NAME}
                     '''
                 }
             }
@@ -52,7 +56,7 @@ pipeline {
         
         stage('Deploy NGINX Proxy') {
             steps {
-                dir('Task1') {  // Change to Task1 directory
+                dir('Task1') {
                     sh '''
                         docker stop ${NGINX_PROXY_NAME} || true
                         docker rm ${NGINX_PROXY_NAME} || true
@@ -62,6 +66,9 @@ pipeline {
                             -p 80:80 \
                             -v ${WORKSPACE}/Task1/nginx.conf:/etc/nginx/nginx.conf:ro \
                             nginx:latest
+                        
+                        # Wait for NGINX to be ready
+                        sleep 5
                     '''
                 }
             }
@@ -72,7 +79,7 @@ pipeline {
                 sh '''
                     docker ps
                     sleep 10
-                    curl localhost:80
+                    curl -v localhost:80
                 '''
             }
         }
