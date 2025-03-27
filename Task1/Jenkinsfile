@@ -1,0 +1,86 @@
+pipeline {
+    agent any
+    
+    environment {
+        YOUR_NAME = 'Sahr'
+        DOCKER_NETWORK = 'flask_network'
+        FLASK_APP_NAME = 'flask-app'
+        NGINX_PROXY_NAME = 'nginx-proxy'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build Flask Docker Image') {
+            steps {
+                sh '''
+                    docker build -t flask-app .
+                    docker images
+                '''
+            }
+        }
+        
+        stage('Create Network') {
+            steps {
+                sh '''
+                    docker network create ${DOCKER_NETWORK} || true
+                '''
+            }
+        }
+        
+        stage('Deploy Flask App') {
+            steps {
+                sh '''
+                    docker stop ${FLASK_APP_NAME} || true
+                    docker rm ${FLASK_APP_NAME} || true
+                    docker run -d \
+                        --name ${FLASK_APP_NAME} \
+                        --network ${DOCKER_NETWORK} \
+                        -e YOUR_NAME=${YOUR_NAME} \
+                        flask-app
+                '''
+            }
+        }
+        
+        stage('Deploy NGINX Proxy') {
+            steps {
+                sh '''
+                    docker stop ${NGINX_PROXY_NAME} || true
+                    docker rm ${NGINX_PROXY_NAME} || true
+                    docker run -d \
+                        --name ${NGINX_PROXY_NAME} \
+                        --network ${DOCKER_NETWORK} \
+                        -p 80:80 \
+                        -v ${WORKSPACE}/nginx.conf:/etc/nginx/nginx.conf:ro \
+                        nginx:latest
+                '''
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    docker ps
+                    sleep 10
+                    curl localhost:80
+                '''
+            }
+        }
+    }
+    
+    post {
+        failure {
+            sh '''
+                docker logs ${FLASK_APP_NAME}
+                docker logs ${NGINX_PROXY_NAME}
+            '''
+        }
+        cleanup {
+            cleanWs()
+        }
+    }
+}
